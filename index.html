@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chácara Lima</title>
+  
+  <!-- Tailwind CSS para Estilização -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons (substituindo os ícones locais) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Bibliotecas React -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel (para ler o código React dentro do HTML) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase (Versão Compatível com HTML simples) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    body { margin: 0; padding: 0; }
+  </style>
+</head>
+<body class="bg-[#0f172a] text-slate-800 selection:bg-[#00afee] selection:text-white relative overflow-x-hidden">
+  
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- CONFIGURAÇÃO DO FIREBASE ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyAXoUar9ZJcV6qbv5WeXiDdEX4WMHhi2sA",
+      authDomain: "chacara-lima-41dad.firebaseapp.com",
+      projectId: "chacara-lima-41dad",
+      storageBucket: "chacara-lima-41dad.firebasestorage.app",
+      messagingSenderId: "259179060637",
+      appId: "1:259179060637:web:fd4f093b6810377a536374"
+    };
+
+    // Inicialização do Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const appId = 'chacara-lima-app';
+
+    const CAROUSEL_IMAGES = [
+      "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1533481405265-e9ce0c044abb?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1521500414741-9c60c87247a3?auto=format&fit=crop&w=1600&q=80"
+    ];
+
+    // --- DADOS DA ESTRUTURA COM FOTOS ---
+    const STRUCTURES = [
+      { id: 'quadra', title: "Quadra de Areia", iconClass: "fa-solid fa-volleyball", img: "https://images.unsplash.com/photo-1629901925121-8a141c2a42f4?auto=format&fit=crop&w=800&q=80" },
+      { id: 'piscina', title: "Piscina", iconClass: "fa-solid fa-water", img: "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80" },
+      { id: 'festa', title: "Salão de Festas", iconClass: "fa-solid fa-champagne-glasses", img: "https://images.unsplash.com/photo-1530103862676-de88b3bc5b4a?auto=format&fit=crop&w=800&q=80" },
+      { id: 'churrasqueira', title: "Churrasqueira", iconClass: "fa-solid fa-fire", img: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80" },
+      { id: 'quartos', title: "2 Quartos", iconClass: "fa-solid fa-bed", img: "https://images.unsplash.com/photo-1522771731470-53ff2eb83f84?auto=format&fit=crop&w=800&q=80" },
+      { id: 'parquinho', title: "Parquinho", iconClass: "fa-solid fa-children", img: "https://images.unsplash.com/photo-1595787143151-e601da948ea8?auto=format&fit=crop&w=800&q=80" }
+    ];
+
+    // Helper para formatar data
+    const formatDate = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    // Feriados no Brasil
+    const getHolidays = (year) => {
+      const holidays = [
+        `${year}-01-01`, `${year}-04-21`, `${year}-05-01`, `${year}-09-07`,
+        `${year}-10-12`, `${year}-11-02`, `${year}-11-15`, `${year}-11-20`, `${year}-12-25`
+      ];
+
+      const a = year % 19;
+      const b = Math.floor(year / 100);
+      const c = year % 100;
+      const d = Math.floor(b / 4);
+      const e = b % 4;
+      const f = Math.floor((b + 8) / 25);
+      const g = Math.floor((b - f + 1) / 3);
+      const h = (19 * a + b - d - g + 15) % 30;
+      const i = Math.floor(c / 4);
+      const k = c % 4;
+      const l = (32 + 2 * e + 2 * i - h - k) % 7;
+      const m = Math.floor((a + 11 * h + 22 * l) / 451);
+      const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+      const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+      const easter = new Date(year, month, day);
+      
+      const addDays = (date, days) => {
+        const res = new Date(date);
+        res.setDate(res.getDate() + days);
+        return formatDate(res);
+      };
+
+      holidays.push(addDays(easter, -47)); // Carnaval
+      holidays.push(addDays(easter, -2));  // Paixão de Cristo
+      holidays.push(formatDate(easter)); // Páscoa
+      holidays.push(addDays(easter, 60));  // Corpus Christi
+
+      return holidays;
+    };
+
+    // Componentes Auxiliares
+    function FeatureIcon({ iconClass, title, onClick }) {
+      return (
+        <div onClick={onClick} className="cursor-pointer group flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-white/10 backdrop-blur-xl rounded-[1.2rem] sm:rounded-[1.5rem] border border-white/10 hover:bg-white/20 transition-all text-white text-center sm:text-left">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 flex shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-white/20 text-white shadow-inner group-hover:scale-110 transition-transform">
+            <i className={`${iconClass} text-[16px] sm:text-[20px]`}></i>
+          </div>
+          <h3 className="font-semibold text-xs sm:text-sm leading-tight">{title}</h3>
+        </div>
+      );
+    }
+
+    function Carousel({ images }) {
+      const [currentIndex, setCurrentIndex] = useState(0);
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentIndex((prev) => (prev + 1) % images.length), 5000);
+        return () => clearInterval(timer);
+      }, [images.length]);
+
+      return (
+        <div className="relative w-full h-[35vh] sm:h-[45vh] md:h-[60vh] overflow-hidden shadow-2xl bg-black/20">
+          {images.map((img, idx) => (
+            <div key={idx} className={`absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ease-in-out ${idx === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} style={{ backgroundImage: `url(${img})` }} />
+          ))}
+          <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-black/70 to-transparent z-20 pointer-events-none"></div>
+          <div className="absolute bottom-5 left-0 right-0 flex justify-center gap-2 z-30">
+            {images.map((_, idx) => (
+              <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${idx === currentIndex ? 'w-6 bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'w-2 bg-white/40 hover:bg-white/60'}`} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Componente Principal
+    function App() {
+      const [user, setUser] = useState(null);
+      const [bookings, setBookings] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      const [view, setView] = useState('home'); 
+      const [loginUser, setLoginUser] = useState('');
+      const [loginPass, setLoginPass] = useState('');
+      const [loginError, setLoginError] = useState('');
+      const isAdmin = view === 'admin';
+
+      const [currentDate, setCurrentDate] = useState(new Date());
+      const [selection, setSelection] = useState([]); 
+      
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [guestName, setGuestName] = useState('');
+      const [guestPhone, setGuestPhone] = useState('');
+      
+      const [selectedStructure, setSelectedStructure] = useState(null);
+
+      const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+      const [bookingToApprove, setBookingToApprove] = useState(null);
+      const [totalValue, setTotalValue] = useState('');
+      const [paidValue, setPaidValue] = useState('');
+
+      const [selectedFinanceMonth, setSelectedFinanceMonth] = useState(() => {
+        const today = new Date();
+        return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      });
+
+      const availableFinanceMonths = useMemo(() => {
+        const months = new Set();
+        bookings.forEach(b => {
+            if (b.status === 'booked' && b.dates && b.dates.length > 0) {
+                months.add(b.dates[0].substring(0, 7));
+            }
+        });
+        const today = new Date();
+        months.add(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+        return Array.from(months).sort().reverse();
+      }, [bookings]);
+
+      const revenue = useMemo(() => {
+        let expected = 0;
+        let paid = 0;
+        const todayStr = formatDate(new Date());
+
+        bookings.forEach(b => {
+          if (b.status === 'booked' && b.dates && b.dates.length > 0) {
+            const bMonth = b.dates[0].substring(0, 7);
+            if (bMonth === selectedFinanceMonth) {
+              const total = Number(b.totalValue) || 0;
+              const sinal = Number(b.paidValue) || 0;
+              expected += total;
+              
+              if (todayStr >= b.dates[0]) paid += total;
+              else paid += sinal;
+            }
+          }
+        });
+        return { expected, paid };
+      }, [bookings, selectedFinanceMonth]);
+
+      const formatMonthSelect = (yyyymm) => {
+        const [y, m] = yyyymm.split('-');
+        const date = new Date(y, m - 1, 1);
+        return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      };
+
+      const handlePhoneChange = (e) => {
+        let value = e.target.value.replace(/\D/g, ''); 
+        if (value.length > 11) value = value.slice(0, 11); 
+        if (value.length > 2) value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+        if (value.length > 9) value = `${value.slice(0, 10)}-${value.slice(10)}`;
+        setGuestPhone(value);
+      };
+
+      useEffect(() => {
+        auth.signInAnonymously().catch(err => console.error("Auth error:", err));
+        const unsubscribe = auth.onAuthStateChanged(setUser);
+        return () => unsubscribe();
+      }, []);
+
+      useEffect(() => {
+        if (!user) return;
+        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings');
+        const unsubscribe = colRef.onSnapshot((snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setBookings(data);
+          setLoading(false);
+        });
+        return () => unsubscribe();
+      }, [user]);
+
+      const handleLogin = (e) => {
+        e.preventDefault();
+        if (loginUser === 'admin' && loginPass === '14021995') {
+          setView('admin'); setLoginError(''); setLoginUser(''); setLoginPass('');
+        } else {
+          setLoginError('Credenciais inválidas.');
+        }
+      };
+
+      const getBookingForDate = (dateStr) => bookings.find(b => b.dates && b.dates.includes(dateStr));
+
+      const handleDateClick = (date) => {
+        const dateStr = formatDate(date);
+        const existingBooking = getBookingForDate(dateStr);
+        
+        if (existingBooking && existingBooking.status !== 'pending' && !isAdmin) return;
+
+        if (isAdmin) {
+           toggleAdminBlock(dateStr, existingBooking);
+           return;
+        }
+
+        if (selection.length === 0) {
+          setSelection([dateStr]);
+        } else if (selection.length === 1) {
+          const firstDate = new Date(selection[0] + 'T12:00:00');
+          const clickedDate = new Date(dateStr + 'T12:00:00');
+          const diffTime = Math.abs(clickedDate - firstDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (dateStr === selection[0]) setSelection([]); 
+          else if (diffDays === 1) setSelection([selection[0], dateStr].sort());
+          else setSelection([dateStr]);
+        } else {
+          setSelection([dateStr]);
+        }
+      };
+
+      const handleRequestDate = async (e) => {
+        e.preventDefault();
+        if (selection.length === 0 || !guestName || !guestPhone) return;
+        
+        const docId = `res_${Date.now()}`;
+        const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(docId);
+        
+        await docRef.set({
+          dates: selection,
+          status: 'pending', 
+          guestName, 
+          guestPhone, 
+          requestedAt: new Date().toISOString()
+        });
+
+        const msg = `Olá, gostaria de solicitar uma reserva na Chácara Lima!\n\n*Nome:* ${guestName}\n*WhatsApp:* ${guestPhone}\n*Datas:* ${formatDisplayDates(selection)}`;
+        const whatsappUrl = `https://wa.me/5587981045332?text=${encodeURIComponent(msg)}`;
+
+        setIsModalOpen(false); setGuestName(''); setGuestPhone(''); setSelection([]);
+        window.open(whatsappUrl, '_blank');
+      };
+
+      const handleAdminAction = async (bookingId, action) => {
+        const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(bookingId);
+        if (action === 'delete') await docRef.delete();
+        else await docRef.set({ status: action }, { merge: true });
+      };
+
+      const toggleAdminBlock = async (dateStr, existingBooking) => {
+        if (existingBooking && existingBooking.status === 'blocked') {
+          await handleAdminAction(existingBooking.id, 'delete');
+        } else if (!existingBooking) {
+          const docId = `block_${dateStr}`;
+          const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(docId);
+          await docRef.set({ dates: [dateStr], status: 'blocked', byAdmin: true });
+        }
+      };
+
+      const confirmApproval = async (e) => {
+        e.preventDefault();
+        if (!bookingToApprove) return;
+
+        const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(bookingToApprove.id);
+        await docRef.set({
+          status: 'booked',
+          totalValue: Number(totalValue),
+          paidValue: Number(paidValue)
+        }, { merge: true });
+
+        setIsApproveModalOpen(false); setBookingToApprove(null); setTotalValue(''); setPaidValue('');
+      };
+
+      const formatDisplayDates = (datesArray) => {
+        if (!datesArray || datesArray.length === 0) return '';
+        if (datesArray.length === 1) return new Date(datesArray[0] + 'T12:00:00').toLocaleDateString('pt-BR');
+        const d1 = new Date(datesArray[0] + 'T12:00:00').toLocaleDateString('pt-BR', {day: 'numeric', month: 'short'});
+        const d2 = new Date(datesArray[1] + 'T12:00:00').toLocaleDateString('pt-BR', {day: 'numeric', month: 'short'});
+        return `${d1} e ${d2}`;
+      };
+
+      const renderCalendarDays = () => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDay = new Date(year, month, 1).getDay();
+        const days = [];
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        
+        const holidays = getHolidays(year);
+
+        for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="p-1"></div>);
+
+        for (let i = 1; i <= daysInMonth; i++) {
+          const date = new Date(year, month, i);
+          const dateStr = formatDate(date);
+          const booking = getBookingForDate(dateStr);
+          const isPast = date < today;
+          const isHoliday = holidays.includes(dateStr);
+          
+          const isSelected = selection.includes(dateStr);
+          const isSelectionStart = selection[0] === dateStr;
+          const isSelectionEnd = selection.length > 1 && selection[1] === dateStr;
+          
+          let wrapperClass = "p-0.5 md:p-1"; 
+          let btnClass = "w-full h-full aspect-square mx-auto max-w-[36px] max-h-[36px] sm:max-w-[42px] sm:max-h-[42px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 relative border ";
+          let isUnavailable = false;
+          let indicator = null;
+
+          if (isPast) {
+            btnClass += "border-slate-100 bg-slate-50/50 text-slate-400 opacity-50 cursor-not-allowed";
+            isUnavailable = true;
+            if (booking && (booking.status === 'booked' || booking.status === 'blocked')) {
+              btnClass += " line-through text-slate-300";
+            }
+          } else if (booking) {
+            if (booking.status === 'booked' || booking.status === 'blocked') {
+              btnClass += "border-red-100 bg-red-50 text-red-400 line-through cursor-not-allowed opacity-90";
+              isUnavailable = true;
+              if (booking.status === 'blocked') {
+                indicator = <i className="fa-solid fa-lock absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-30 text-red-700 text-[10px]"></i>;
+              }
+            } else if (booking.status === 'pending') {
+              btnClass += isAdmin ? "border-amber-300 bg-amber-100 text-amber-800" : "border-red-100 bg-red-50 text-red-400 line-through cursor-not-allowed opacity-90";
+              isUnavailable = !isAdmin;
+            }
+          } else if (isHoliday) {
+            btnClass += "border-rose-200 bg-rose-50 text-rose-600 font-bold hover:border-rose-300 hover:bg-rose-100";
+          } else {
+            btnClass += "border-slate-200 bg-white text-slate-700 hover:border-[#00afee] hover:text-[#1474b4] hover:bg-blue-50 hover:shadow-sm";
+          }
+
+          if (isSelected && !isAdmin) {
+            btnClass = "w-full h-full aspect-square mx-auto max-w-[36px] max-h-[36px] sm:max-w-[42px] sm:max-h-[42px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 relative border-transparent bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white font-bold shadow-[0_4px_15px_rgba(0,175,238,0.3)] transform scale-[1.05] z-10";
+            if (selection.length === 2) {
+               if (isSelectionStart) wrapperClass += " bg-[#00afee]/10 rounded-l-full";
+               if (isSelectionEnd) wrapperClass += " bg-[#00afee]/10 rounded-r-full";
+            }
+            indicator = null;
+          }
+
+          days.push(
+            <div key={i} className={`relative flex justify-center items-center aspect-square ${wrapperClass}`}>
+              <button disabled={isPast || (isUnavailable && !isAdmin)} onClick={() => handleDateClick(date)} className={btnClass} title={isHoliday && !isPast && (!isUnavailable || isAdmin) ? "Feriado" : ""}>
+                <span className="relative z-10">{i}</span>
+                {indicator}
+              </button>
+            </div>
+          );
+        }
+        return days;
+      };
+
+      const renderBackground = () => (
+        <div className="fixed inset-0 z-0 bg-[#0a0f1c] overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#1474b4]/30 blur-[120px] pointer-events-none"></div>
+          <div className="absolute top-[30%] right-[-10%] w-[400px] h-[400px] rounded-full bg-[#00afee]/20 blur-[100px] pointer-events-none"></div>
+          <div className="absolute bottom-[-10%] left-[10%] w-[600px] h-[600px] rounded-full bg-[#1474b4]/20 blur-[120px] pointer-events-none"></div>
+        </div>
+      );
+
+      if (view === 'login') {
+        return (
+          <div className="min-h-screen font-sans text-slate-800 flex items-center justify-center p-4">
+            {renderBackground()}
+            <div className="relative z-10 max-w-sm w-full bg-white/95 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20 p-8 transform transition-all">
+              <button onClick={() => setView('home')} className="absolute top-6 left-6 text-slate-400 hover:text-[#1474b4] transition-colors">
+                <i className="fa-solid fa-arrow-left text-[24px]"></i>
+              </button>
+              <div className="text-center mt-6 mb-8">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-[#1474b4] to-[#00afee] rounded-2xl flex items-center justify-center shadow-lg shadow-[#00afee]/20 mb-4">
+                  <i className="fa-solid fa-shield-halved text-white text-[32px]"></i>
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">Acesso Restrito</h2>
+                <p className="text-sm text-slate-500 font-medium mt-1">Portal do Administrador</p>
+              </div>
+              <form onSubmit={handleLogin} className="space-y-4">
+                {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold text-center">{loginError}</div>}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 ml-1 uppercase tracking-wider">Usuário</label>
+                  <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full px-5 py-3.5 rounded-2xl border-0 bg-slate-100/50 focus:bg-slate-100 focus:ring-2 focus:ring-[#00afee] outline-none transition-all font-medium text-slate-700" placeholder="Digite o usuário" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 ml-1 uppercase tracking-wider">Senha</label>
+                  <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full px-5 py-3.5 rounded-2xl border-0 bg-slate-100/50 focus:bg-slate-100 focus:ring-2 focus:ring-[#00afee] outline-none transition-all font-medium text-slate-700" placeholder="Digite a senha" />
+                </div>
+                <button type="submit" className="w-full py-4 mt-4 bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white font-bold rounded-2xl shadow-xl shadow-[#1474b4]/20 hover:scale-[1.02] transition-transform">
+                  Entrar no Painel
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'admin') {
+        return (
+          <div className="min-h-screen flex flex-col font-sans text-slate-800 selection:bg-[#00afee] selection:text-white">
+            {renderBackground()}
+            <header className="relative z-10 w-full max-w-5xl mx-auto mt-6 px-4">
+              <div className="bg-white/95 backdrop-blur-xl shadow-lg border border-white/20 rounded-[2rem] px-6 py-4 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-[1rem] bg-gradient-to-br from-[#1474b4] to-[#00afee] flex items-center justify-center shadow-md">
+                    <i className="fa-solid fa-shield-halved text-white text-[20px]"></i>
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-black text-slate-900 leading-none">Painel</h1>
+                    <span className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Chácara Lima</span>
+                  </div>
+                </div>
+                <button onClick={() => setView('home')} className="w-10 h-10 flex items-center justify-center rounded-[1rem] bg-slate-100 text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+                  <i className="fa-solid fa-arrow-right-from-bracket text-[18px]"></i>
+                </button>
+              </div>
+            </header>
+
+            <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1 flex flex-col gap-6">
+                <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/20 p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-black text-slate-900 flex items-center gap-2">
+                      <i className="fa-solid fa-dollar-sign text-emerald-500 text-[20px]"></i> Financeiro
+                    </h2>
+                    <select value={selectedFinanceMonth} onChange={(e) => setSelectedFinanceMonth(e.target.value)} className="bg-slate-100 border-0 text-slate-700 text-[10px] sm:text-xs font-bold rounded-xl px-2 py-1.5 outline-none cursor-pointer capitalize">
+                      {availableFinanceMonths.map(m => <option key={m} value={m}>{formatMonthSelect(m)}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Recebido</span>
+                      <span className="font-black text-emerald-600">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(revenue.paid)}
+                      </span>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Fechado</span>
+                      <span className="font-bold text-slate-700">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(revenue.expected)}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-3 font-medium leading-tight">
+                    * O restante do valor é somado automaticamente no dia do aluguel.
+                  </p>
+                </div>
+
+                <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/20 p-6 sticky top-6">
+                  <h2 className="font-black text-slate-900 mb-1">Bloqueio Rápido</h2>
+                  <p className="text-xs text-slate-500 mb-6 font-medium">Toque nos dias para gerenciar.</p>
+                  <div className="flex justify-between items-center mb-4 bg-slate-50 rounded-2xl p-1">
+                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-2 text-slate-400 hover:text-[#1474b4] rounded-xl hover:bg-white transition-colors"><i className="fa-solid fa-chevron-left text-[18px]"></i></button>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">{currentDate.toLocaleString('pt-BR', { month: 'short', year: 'numeric' })}</h3>
+                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-2 text-slate-400 hover:text-[#1474b4] rounded-xl hover:bg-white transition-colors"><i className="fa-solid fa-chevron-right text-[18px]"></i></button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-2 uppercase">
+                    <div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div>
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-1">{renderCalendarDays()}</div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2">
+                <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/20 overflow-hidden flex flex-col h-full">
+                  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h2 className="text-lg font-black text-slate-900">Solicitações</h2>
+                    <span className="px-3 py-1 bg-[#00afee]/10 text-[#1474b4] text-xs font-bold rounded-full border border-[#00afee]/20">
+                      {bookings.filter(b => b.status === 'pending').length} Pendentes
+                    </span>
+                  </div>
+                  <div className="divide-y divide-slate-100 p-2">
+                    {bookings.length === 0 ? (
+                      <div className="p-12 text-center text-slate-400 text-sm font-medium">Nenhuma movimentação.</div>
+                    ) : (
+                      bookings.sort((a,b) => (b.requestedAt || '').localeCompare(a.requestedAt || '')).map(booking => (
+                        <div key={booking.id} className="p-4 rounded-2xl hover:bg-slate-50 transition-colors flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-2">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${booking.status === 'booked' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : booking.status === 'blocked' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
+                              <i className="fa-regular fa-calendar text-[20px]"></i>
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-900 block leading-tight">{formatDisplayDates(booking.dates)}</span>
+                              <h4 className="text-slate-500 text-sm font-medium">{booking.guestName || 'Bloqueio Manual'}</h4>
+                              {booking.guestPhone && <p className="text-xs text-slate-400 mt-1 flex items-center gap-1"><i className="fa-brands fa-whatsapp text-[12px]"></i> {booking.guestPhone}</p>}
+                              {booking.status === 'booked' && booking.totalValue > 0 && (
+                                <p className="text-xs text-emerald-600 mt-1 font-semibold flex items-center gap-1">
+                                  <i className="fa-solid fa-dollar-sign text-[12px]"></i> Sinal: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(booking.paidValue)} / Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(booking.totalValue)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                            {booking.status === 'pending' && (
+                              <button onClick={() => { setBookingToApprove(booking); setIsApproveModalOpen(true); }} className="flex-1 sm:flex-none px-4 py-2 bg-emerald-500 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-500/20 hover:bg-emerald-600 transition-colors">Aprovar</button>
+                            )}
+                            <button onClick={() => handleAdminAction(booking.id, 'delete')} className="p-2 text-slate-400 bg-slate-100 hover:bg-red-100 hover:text-red-500 rounded-xl transition-colors"><i className="fa-solid fa-xmark text-[20px]"></i></button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </main>
+
+            {isApproveModalOpen && bookingToApprove && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsApproveModalOpen(false)}></div>
+                <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 sm:p-8 relative z-10 animate-fade-in-up">
+                  <button onClick={() => setIsApproveModalOpen(false)} className="absolute top-5 right-5 sm:top-6 sm:right-6 text-slate-300 hover:text-slate-600 bg-slate-50 rounded-full p-2 transition-colors"><i className="fa-solid fa-xmark text-[18px]"></i></button>
+                  <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center mb-4">
+                     <i className="fa-solid fa-wallet text-[20px]"></i>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 leading-tight mb-1">Confirmar Reserva</h3>
+                  <p className="text-slate-500 text-xs font-medium mb-5">{formatDisplayDates(bookingToApprove.dates)} - {bookingToApprove.guestName}</p>
+                  <form onSubmit={confirmApproval} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 ml-1 uppercase tracking-wider">Valor Total (R$)</label>
+                      <input type="number" required min="0" step="0.01" value={totalValue} onChange={e => setTotalValue(e.target.value)} className="w-full px-4 py-3 mt-1 rounded-2xl border-0 bg-slate-100/50 focus:bg-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" placeholder="Ex: 1000.00" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 ml-1 uppercase tracking-wider">Sinal Pago (R$)</label>
+                      <input type="number" required min="0" step="0.01" value={paidValue} onChange={e => setPaidValue(e.target.value)} className="w-full px-4 py-3 mt-1 rounded-2xl border-0 bg-slate-100/50 focus:bg-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium" placeholder="Ex: 500.00" />
+                    </div>
+                    <button type="submit" className="w-full py-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-[1.02] transition-transform mt-2">
+                      Aprovar e Salvar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // ==========================================
+      // VIEW: HOME 
+      // ==========================================
+      return (
+        <div className="font-sans text-slate-800 selection:bg-[#00afee] selection:text-white pb-6 relative overflow-x-hidden">
+          {renderBackground()}
+
+          <nav className="fixed top-0 left-0 w-full z-50 bg-[#0a0f1c]/80 backdrop-blur-xl border-b border-white/10 px-4 py-3 sm:px-6 transition-all">
+            <div className="max-w-4xl mx-auto flex justify-between items-center">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+                <i className="fa-solid fa-umbrella-beach text-[#00afee] text-[28px]"></i>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold tracking-[0.3em] uppercase leading-none text-[#aed5f2]">Chácara</span>
+                  <span className="text-xl font-black tracking-widest leading-none text-white">LIMA</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 sm:gap-5">
+                <a href="#reservas" className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white text-[11px] sm:text-sm font-bold rounded-full shadow-lg shadow-[#1474b4]/20 hover:scale-105 transition-transform whitespace-nowrap">
+                  Reservar
+                </a>
+                <button onClick={() => setView('login')} className="text-white/70 hover:text-white text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 transition-colors">
+                  <i className="fa-solid fa-arrow-right-to-bracket text-[16px]"></i> <span className="hidden md:inline">Admin</span>
+                </button>
+              </div>
+            </div>
+          </nav>
+          
+          <div className="relative z-10 w-full mt-[60px] sm:mt-[68px] animate-fade-in-down">
+            <Carousel images={CAROUSEL_IMAGES} />
+          </div>
+
+          <main className="relative z-10 w-full max-w-2xl mx-auto px-4 pt-8 flex flex-col items-center gap-8">
+            <section id="estrutura" className="w-full mt-2 scroll-mt-24">
+              <h2 className="text-white text-lg font-bold mb-4 px-2 drop-shadow-md">Nossa Estrutura</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {STRUCTURES.map((struct) => (
+                  <FeatureIcon key={struct.id} iconClass={struct.iconClass} title={struct.title} onClick={() => setSelectedStructure(struct)} />
+                ))}
+              </div>
+            </section>
+
+            <section id="reservas" className="w-full scroll-mt-24">
+              <div className="bg-white/95 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border border-white/30 p-6 md:p-8">
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Reservas</h2>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Selecione 1 ou 2 dias consecutivos.</p>
+                </div>
+                <div className="flex justify-between items-center mb-6 bg-slate-50 p-1.5 rounded-2xl">
+                  <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-2 rounded-xl hover:bg-white text-slate-500 shadow-sm transition-all"><i className="fa-solid fa-chevron-left text-[18px]"></i></button>
+                  <h3 className="text-[15px] font-bold text-slate-800 capitalize tracking-wide">{currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</h3>
+                  <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-2 rounded-xl hover:bg-white text-slate-500 shadow-sm transition-all"><i className="fa-solid fa-chevron-right text-[18px]"></i></button>
+                </div>
+                <div className="grid grid-cols-7 mb-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+                </div>
+                {loading ? (
+                  <div className="py-12 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1474b4]"></div></div>
+                ) : (
+                  <div className="grid grid-cols-7 gap-y-1">{renderCalendarDays()}</div>
+                )}
+                
+                <div className="mt-6 flex flex-wrap justify-center gap-3 sm:gap-6 pt-5 border-t border-slate-200/50">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-slate-200 bg-white shadow-sm"></div>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Livre</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-rose-200 bg-rose-50 shadow-sm"></div>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Feriado</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-red-100 bg-red-50 flex items-center justify-center shadow-sm">
+                      <div className="w-3 h-[1.5px] bg-red-300 -rotate-45"></div>
+                    </div>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Indisponível</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gradient-to-r from-[#1474b4] to-[#00afee] shadow-sm"></div>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selecionado</span>
+                  </div>
+                </div>
+                
+                <div className={`mt-6 transition-all duration-400 overflow-hidden ${selection.length > 0 ? 'max-h-32 opacity-100 translate-y-0' : 'max-h-0 opacity-0 translate-y-4'}`}>
+                   <div className="bg-slate-50 p-4 rounded-[1.5rem] border border-slate-100 flex flex-col items-center gap-3">
+                     <span className="text-[#1474b4] text-sm font-black tracking-tight flex items-center gap-2">
+                       <i className="fa-regular fa-calendar text-[16px]"></i> {formatDisplayDates(selection)}
+                     </span>
+                     <div className="flex gap-2 w-full">
+                        <button onClick={() => setSelection([])} className="px-4 py-3 text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors">Limpar</button>
+                        <button onClick={() => setIsModalOpen(true)} className="flex-1 px-4 py-3 bg-[#1474b4] text-white rounded-xl text-xs font-bold shadow-md hover:bg-[#00afee] transition-colors">Confirmar Data</button>
+                     </div>
+                   </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="mt-4 text-center pb-6 opacity-60">
+               <button onClick={() => window.scrollTo(0,0)} className="flex items-center gap-2 mx-auto mb-6 text-white/70 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest bg-white/5 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 hover:bg-white/10">
+                 <i className="fa-solid fa-arrow-up text-[14px]"></i> Voltar ao Topo
+               </button>
+               <p className="text-[10px] text-white/50 uppercase tracking-widest">&copy; {new Date().getFullYear()} Chácara Lima</p>
+            </div>
+          </main>
+
+          <a href="https://wa.me/5587981045332?text=Olá,%20gostaria%20de%20saber%20mais%20sobre%20a%20Chácara%20Lima!" target="_blank" rel="noreferrer" className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl shadow-green-500/30 hover:scale-110 transition-transform z-50 flex items-center justify-center bg-[#25D366] text-white border-2 border-white/20 backdrop-blur-sm">
+            <i className="fa-brands fa-whatsapp text-[28px]"></i>
+          </a>
+
+          {isModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
+              <div className="bg-white w-full max-w-sm rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl p-6 sm:p-8 relative z-10 animate-fade-in-up">
+                <button onClick={() => setIsModalOpen(false)} className="absolute top-5 right-5 sm:top-6 sm:right-6 text-slate-300 hover:text-slate-600 bg-slate-50 rounded-full p-2 transition-colors"><i className="fa-solid fa-xmark text-[18px]"></i></button>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 text-[#1474b4] rounded-xl sm:rounded-2xl flex items-center justify-center mb-4">
+                   <i className="fa-regular fa-calendar text-[22px] sm:text-[24px]"></i>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight mb-1">Finalizar<br/>Solicitação</h3>
+                <p className="text-slate-500 text-xs sm:text-sm font-medium mb-5 sm:mb-6">{formatDisplayDates(selection)}</p>
+                <form onSubmit={handleRequestDate} className="space-y-3">
+                  <input type="text" required value={guestName} onChange={e => setGuestName(e.target.value)} className="w-full px-5 py-3.5 rounded-2xl border-0 bg-slate-100/50 focus:bg-slate-100 focus:ring-2 focus:ring-[#00afee] outline-none text-sm font-medium" placeholder="Seu nome completo" />
+                  <input type="tel" required minLength={14} maxLength={15} value={guestPhone} onChange={handlePhoneChange} className="w-full px-5 py-3.5 rounded-2xl border-0 bg-slate-100/50 focus:bg-slate-100 focus:ring-2 focus:ring-[#00afee] outline-none text-sm font-medium" placeholder="(00) 00000-0000" />
+                  <button type="submit" className="w-full py-4 bg-[#1474b4] text-white font-bold rounded-2xl shadow-lg shadow-[#1474b4]/20 hover:scale-[1.02] transition-transform mt-4 flex items-center justify-center gap-2">
+                    Enviar Reserva <i className="fa-solid fa-arrow-down text-[16px] -rotate-90"></i>
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {selectedStructure && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setSelectedStructure(null)}></div>
+              <div className="bg-[#0a0f1c] border border-white/20 w-full max-w-md sm:max-w-lg rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden relative z-10 animate-fade-in-up">
+                <button onClick={() => setSelectedStructure(null)} className="absolute top-4 right-4 text-white hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-2 transition-colors z-20 backdrop-blur-md">
+                  <i className="fa-solid fa-xmark text-[20px]"></i>
+                </button>
+                <div className="relative w-full h-72 sm:h-96 bg-slate-800">
+                  <img src={selectedStructure.img} alt={selectedStructure.title} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1c] via-[#0a0f1c]/20 to-transparent"></div>
+                </div>
+                <div className="p-6 sm:p-8 relative -mt-16 sm:-mt-20">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-[#1474b4] to-[#00afee] rounded-xl sm:rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#00afee]/20 border border-white/10 text-white">
+                     <i className={`${selectedStructure.iconClass} text-[20px] sm:text-[24px]`}></i>
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">{selectedStructure.title}</h3>
+                  <p className="text-slate-400 text-xs sm:text-sm font-medium mt-2">Um dos incríveis espaços da Chácara Lima pensado para o seu lazer.</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
