@@ -28,7 +28,7 @@
     }
 
     .footer-gradient {
-      background: linear-gradient(to bottom, transparent, rgba(2, 6, 23, 0.95));
+      background: linear-gradient(to bottom, transparent, rgba(8, 47, 73, 0.98));
     }
 
     @keyframes pulse-whatsapp {
@@ -41,7 +41,7 @@
     }
   </style>
 </head>
-<body class="bg-[#020617] text-slate-800 selection:bg-[#00afee] selection:text-white relative overflow-x-hidden">
+<body class="bg-[#082f49] text-slate-800 selection:bg-[#00afee] selection:text-white relative overflow-x-hidden">
   
   <div id="root"></div>
 
@@ -181,7 +181,8 @@
         setIsGeneratingImage(true);
         setTimeout(async () => {
           const el = document.getElementById('story-calendar-container');
-          const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#0f172a', useCORS: true });
+          // Atualizada a cor de fundo do canvas para o azul da logo
+          const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#082f49', useCORS: true });
           const link = document.createElement('a');
           link.href = canvas.toDataURL('image/jpeg', 0.9);
           link.download = `Chacara-Lima-Story-${Date.now()}.jpg`;
@@ -410,12 +411,12 @@
 
       return (
         <div className="font-sans flex flex-col min-h-screen">
-          <div className="fixed inset-0 z-0 bg-[#020617] overflow-hidden">
-            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#1474b4]/30 blur-[120px]"></div>
-            <div className="absolute top-[30%] right-[-10%] w-[400px] h-[400px] rounded-full bg-[#00afee]/20 blur-[100px]"></div>
+          <div className="fixed inset-0 z-0 bg-[#082f49] overflow-hidden">
+            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#1474b4]/20 blur-[120px]"></div>
+            <div className="absolute top-[30%] right-[-10%] w-[400px] h-[400px] rounded-full bg-[#00afee]/15 blur-[100px]"></div>
           </div>
 
-          <nav className="fixed top-0 left-0 w-full z-50 bg-[#020617]/80 backdrop-blur-xl border-b border-white/10 px-4 py-3">
+          <nav className="fixed top-0 left-0 w-full z-50 bg-[#082f49]/80 backdrop-blur-xl border-b border-white/10 px-4 py-3">
             <div className="max-w-4xl mx-auto flex justify-between items-center">
               <img src="logo.png" alt="Chácara Lima" className="h-10 sm:h-14 cursor-pointer" onClick={() => { setView('home'); window.scrollTo(0,0); }} onError={(e) => e.target.style.display='none'} />
               <div className="flex items-center gap-2 sm:gap-3 ml-auto">
@@ -501,7 +502,7 @@
                 <div className="flex justify-center mt-10 mb-4">
                   <button 
                     onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className="flex items-center gap-3 px-8 py-3 rounded-full border border-slate-700 bg-slate-800/30 text-slate-400 hover:text-white hover:bg-slate-700 hover:border-slate-500 transition-all text-[10px] font-black uppercase tracking-[0.2em]"
+                    className="flex items-center gap-3 px-8 py-3 rounded-full border border-sky-800 bg-sky-900/30 text-sky-400 hover:text-white hover:bg-sky-800 hover:border-sky-600 transition-all text-[10px] font-black uppercase tracking-[0.2em]"
                   >
                     <i className="fa-solid fa-arrow-up"></i> Voltar ao topo
                   </button>
@@ -591,7 +592,7 @@
                             <h4 className="font-black text-slate-800 text-lg leading-none">{b.guestName || "Bloqueio Manual"}</h4>
                             <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 flex items-center gap-1"><i className="fa-regular fa-calendar"></i> {b.dates?.join(' & ')}</p>
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${b.status === 'booked' ? 'bg-emerald-100 text-emerald-700' : b.status === 'blocked' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>{b.status === 'booked' ? 'CONFIRMADA' : b.status === 'blocked' ? 'BLOQUEADO' : 'PENDENTE'}</span>
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${b.status === 'booked' ? 'bg-emerald-100 text-emerald-700' : b.status === 'blocked' ? 'bg-slate-100 text-slate-600' : b.status === 'amber-100 text-amber-700'}`}>{b.status === 'booked' ? 'CONFIRMADA' : b.status === 'blocked' ? 'BLOQUEADO' : 'PENDENTE'}</span>
                         </div>
                         
                         {b.status === 'booked' && (
@@ -675,7 +676,8 @@
         </div>
 
         {/* STORY PREVIEW (HIDDEN) */}
-        <div id="story-calendar-container" className="fixed left-[-9999px] w-[1080px] h-[1920px] bg-[#0f172a] p-16 flex flex-col items-center justify-between text-white">
+        {/* Atualizada a cor de fundo bg-[#082f49] para condizer com o site */}
+        <div id="story-calendar-container" className="fixed left-[-9999px] w-[1080px] h-[1920px] bg-[#082f49] p-16 flex flex-col items-center justify-between text-white">
           <div className="w-full flex justify-center mt-24">
             {!titleError ? (
               <img src="titulo-story.png" alt="Datas Disponíveis" className="w-[650px] object-contain" onError={() => setTitleError(true)} />
