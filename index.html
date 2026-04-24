@@ -243,7 +243,8 @@
         setFormError('');
       };
 
-      const handleRequestDate = async (e) => {
+      // Função Síncrona para evitar bloqueadores de pop-up em telemóveis
+      const handleRequestDate = (e) => {
         e.preventDefault();
         
         // Validações
@@ -256,13 +257,24 @@
           return;
         }
 
-        const docId = `res_${Date.now()}`;
-        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(docId).set({
-          dates: selection, status: 'pending', guestName, guestPhone, requestedAt: new Date().toISOString()
-        });
         const msg = `Olá, gostaria de solicitar uma reserva!\nNome: ${guestName}\nWhatsApp: ${guestPhone}\nDatas: ${selection.join(' e ')}`;
-        window.open(`https://wa.me/5587981045332?text=${encodeURIComponent(msg)}`, '_blank');
+        const waUrl = `https://wa.me/5587981045332?text=${encodeURIComponent(msg)}`;
         
+        // 1. Abre a aba/aplicativo do WhatsApp imediatamente (evita bloqueio no Safari/Chrome Mobile)
+        const newWindow = window.open(waUrl, '_blank');
+        
+        // Fallback: Se o popup for bloqueado, navega na mesma aba (muito comum no iOS)
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            window.location.href = waUrl;
+        }
+
+        // 2. Guarda a reserva no Firebase em segundo plano
+        const docId = `res_${Date.now()}`;
+        db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(docId).set({
+          dates: selection, status: 'pending', guestName, guestPhone, requestedAt: new Date().toISOString()
+        }).catch(err => console.error("Erro ao guardar reserva:", err));
+        
+        // 3. Limpa o formulário
         setIsModalOpen(false); 
         setSelection([]); 
         setGuestName(''); 
@@ -580,7 +592,7 @@
           <div id="story-calendar-container" className="fixed left-[-9999px] w-[1080px] h-[1920px] bg-[#0f172a] p-16 flex flex-col items-center justify-between text-white">
             <div className="w-full flex justify-center mt-8">
               {!titleError ? (
-                <img src="titulo-story.png" alt="Datas Disponíveis" className="w-[900px] object-contain" onError={() => setTitleError(true)} />
+                <img src="titulo-story.png" alt="Datas Disponíveis" className="w-[450px] object-contain" onError={() => setTitleError(true)} />
               ) : (
                 <div className="text-center">
                   <p className="text-[40px] font-bold tracking-[0.3em] uppercase text-[#00afee] mb-2">Confira nossa</p>
