@@ -73,7 +73,7 @@
       { id: 'quadra', title: "Quadra de Areia", iconClass: "fa-solid fa-volleyball", img: "quadra.jpg" },
       { id: 'piscina', title: "Piscina", iconClass: "fa-solid fa-water", img: "piscina.jpg" },
       { id: 'festa', title: "Salão de Festas", iconClass: "fa-solid fa-champagne-glasses", img: "salao.jpg" },
-      { id: 'churrasqueira', title: "Churrasqueira", iconClass: "fa-solid fa-fire", img: "churrasqueira.jpg" },
+      { id: 'churrasqueira', title: "Área de Churrasco", iconClass: "fa-solid fa-fire", img: "churrasqueira.jpg" },
       { id: 'quartos', title: "2 Quartos", iconClass: "fa-solid fa-bed", img: "quartos.jpg" },
       { id: 'parquinho', title: "Parquinho", iconClass: "fa-solid fa-children", img: "parquinho.jpg" }
     ];
@@ -106,8 +106,11 @@
       const [currentDate, setCurrentDate] = useState(new Date());
       const [selection, setSelection] = useState([]); 
       const [isModalOpen, setIsModalOpen] = useState(false);
+      
       const [guestName, setGuestName] = useState('');
       const [guestPhone, setGuestPhone] = useState('');
+      const [formError, setFormError] = useState('');
+
       const [selectedStructure, setSelectedStructure] = useState(null);
       const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
       const [bookingToApprove, setBookingToApprove] = useState(null);
@@ -119,6 +122,9 @@
         const today = new Date();
         return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
       });
+
+      // Estado para controlar a falha do carregamento da imagem titulo-story
+      const [titleError, setTitleError] = useState(false);
 
       const isAdmin = view === 'admin';
 
@@ -200,7 +206,7 @@
         if (selection.length === 0) setSelection([dateStr]);
         else if (selection.length === 1) {
           const firstDate = new Date(selection[0] + 'T12:00:00'), clickedDate = new Date(dateStr + 'T12:00:00');
-          const diffDays = Math.ceil(Math.abs(clickedDate - firstDate) / (1000 * 60 * 60 * 24));
+          const diffDays = Math.round(Math.abs(clickedDate - firstDate) / (1000 * 60 * 60 * 24));
           if (dateStr === selection[0]) setSelection([]);
           else if (diffDays === 1) setSelection([selection[0], dateStr].sort());
           else setSelection([dateStr]);
@@ -223,15 +229,45 @@
         setIsApproveModalOpen(false); setBookingToApprove(null); setTotalValue(''); setPaidValue('');
       };
 
+      // Formatação do telemóvel ao vivo
+      const handlePhoneChange = (e) => {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length > 11) value = value.slice(0, 11);
+        if (value.length > 2) {
+          value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+        }
+        if (value.length > 10) {
+          value = `${value.slice(0, 10)}-${value.slice(10)}`;
+        }
+        setGuestPhone(value);
+        setFormError('');
+      };
+
       const handleRequestDate = async (e) => {
         e.preventDefault();
+        
+        // Validações
+        if (guestName.trim().length < 3) {
+          setFormError('Por favor, informe seu nome completo.');
+          return;
+        }
+        if (guestPhone.replace(/\D/g, '').length < 10) {
+          setFormError('Por favor, informe um WhatsApp válido com DDD.');
+          return;
+        }
+
         const docId = `res_${Date.now()}`;
         await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('bookings').doc(docId).set({
           dates: selection, status: 'pending', guestName, guestPhone, requestedAt: new Date().toISOString()
         });
         const msg = `Olá, gostaria de solicitar uma reserva!\nNome: ${guestName}\nWhatsApp: ${guestPhone}\nDatas: ${selection.join(' e ')}`;
         window.open(`https://wa.me/5587981045332?text=${encodeURIComponent(msg)}`, '_blank');
-        setIsModalOpen(false); setSelection([]); setGuestName(''); setGuestPhone('');
+        
+        setIsModalOpen(false); 
+        setSelection([]); 
+        setGuestName(''); 
+        setGuestPhone('');
+        setFormError('');
       };
 
       const renderCalendarDays = (isForImage = false) => {
@@ -240,35 +276,54 @@
         const days = [], today = new Date(); today.setHours(0,0,0,0);
         const holidays = getHolidays(year);
 
-        for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className={isForImage ? "h-[90px]" : ""}></div>);
+        for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className={isForImage ? "h-[90px]" : "h-[42px]"}></div>);
 
         for (let i = 1; i <= daysInMonth; i++) {
           const date = new Date(year, month, i), dateStr = formatDate(date);
           const booking = bookings.find(b => b.dates?.includes(dateStr)), isPast = date < today;
           
+          let wrapperClass = "relative flex justify-center items-center h-[42px] w-full"; 
           let btnClass = isForImage 
             ? "w-[80px] h-[80px] mx-auto rounded-full relative border-[4px] box-border overflow-hidden "
-            : "w-full aspect-square mx-auto max-w-[42px] rounded-full flex items-center justify-center text-sm relative border ";
+            : "w-[40px] h-[40px] rounded-full flex items-center justify-center text-sm relative z-10 border transition-colors ";
           
           let indicator = null;
+          let bgStretch = null;
+
+          let isSelectedOne = !isAdmin && !isForImage && selection.length === 1 && dateStr === selection[0];
+          let isSelectedFirst = !isAdmin && !isForImage && selection.length === 2 && dateStr === selection[0];
+          let isSelectedSecond = !isAdmin && !isForImage && selection.length === 2 && dateStr === selection[1];
 
           if (isPast) {
             btnClass += isForImage ? "border-slate-200 bg-slate-100 text-transparent " : "border-slate-100 bg-slate-50/50 text-slate-400 opacity-50 ";
           } else if (booking && (booking.status === 'booked' || booking.status === 'blocked' || (booking.status === 'pending' && !isAdmin))) {
             btnClass += isForImage ? "border-red-300 bg-red-50 text-red-600 " : "border-red-100 bg-red-50 text-red-400 line-through ";
             if (isForImage) indicator = <div style={{ position: 'absolute', top: '50%', left: '-25%', width: '150%', height: '8px', backgroundColor: '#ef4444', marginTop: '-4px', transform: 'rotate(-45deg)' }}></div>;
+          } else if (isSelectedOne) {
+            btnClass += "bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white font-bold shadow-lg border-transparent ";
+          } else if (isSelectedFirst) {
+            btnClass += "bg-[#1474b4] text-white font-bold border-transparent shadow-md ";
+            if (date.getDay() !== 6) bgStretch = <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[30px] w-1/2 bg-gradient-to-r from-[#1474b4] to-[#0b92d0] z-0"></div>;
+          } else if (isSelectedSecond) {
+            btnClass += "bg-[#00afee] text-white font-bold border-transparent shadow-md ";
+            if (date.getDay() !== 0) bgStretch = <div className="absolute left-0 top-1/2 -translate-y-1/2 h-[30px] w-1/2 bg-gradient-to-r from-[#0b92d0] to-[#00afee] z-0"></div>;
           } else if (holidays.includes(dateStr)) {
-            btnClass += "border-rose-200 bg-rose-50 text-rose-600 font-bold ";
+            btnClass += "border-rose-200 bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 ";
           } else {
-            btnClass += "border-slate-200 bg-white text-slate-700 ";
+            btnClass += "border-slate-200 bg-white hover:bg-slate-50 ";
+            btnClass += (date.getDay() === 0 || date.getDay() === 6) ? "text-slate-900 font-bold " : "text-slate-700 font-medium ";
           }
 
-          if (selection.includes(dateStr) && !isAdmin && !isForImage) btnClass = "w-full aspect-square mx-auto max-w-[42px] rounded-full flex items-center justify-center text-sm relative bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white font-bold shadow-lg";
+          // Assegura que sábados e domingos sejam sempre negrito, independentemente de estarem livres ou ocupados
+          if ((date.getDay() === 0 || date.getDay() === 6) && !btnClass.includes("font-bold")) {
+            btnClass += " font-bold ";
+          }
 
           days.push(
-            <div key={i} className={isForImage ? "h-[90px] flex items-center" : "p-1"}>
+            <div key={i} className={isForImage ? "h-[90px] flex items-center" : wrapperClass}>
+              {bgStretch}
               <button disabled={isPast || (!isAdmin && booking)} onClick={() => handleDateClick(date)} className={btnClass} style={isForImage ? {lineHeight: '72px', textAlign: 'center'} : {}}>
-                {!isPast && <span className="relative z-10">{i}</span>}
+                <span className="relative z-10">{i}</span>
                 {indicator}
               </button>
             </div>
@@ -288,17 +343,10 @@
 
           <nav className="fixed top-0 left-0 w-full z-50 bg-[#0a0f1c]/80 backdrop-blur-xl border-b border-white/10 px-4 py-3">
             <div className="max-w-4xl mx-auto flex justify-between items-center">
-              <img src="logo.png" alt="Chácara Lima" className="h-10 sm:h-14 cursor-pointer" onClick={() => setView('home')} />
-              <div className="flex items-center gap-2">
-                {view === 'home' && (
-                  <a href="#reservas" className="px-5 py-2 sm:px-8 sm:py-3.5 bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white text-[11px] sm:text-base font-black uppercase tracking-widest rounded-full shadow-lg hover:scale-105 transition-transform">RESERVAR</a>
-                )}
-                
-                {view === 'admin' ? (
-                  <button onClick={handleLogout} className="px-4 py-2 border border-red-500/50 bg-red-500/10 text-red-400 rounded-full text-[10px] sm:text-sm font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-colors">SAIR</button>
-                ) : (
-                  <button onClick={() => setView(view === 'home' ? 'login' : 'home')} className="px-4 py-2 border border-white/20 rounded-full text-white/70 hover:text-white text-[10px] sm:text-sm font-bold uppercase">{view === 'login' ? 'Início' : 'Admin'}</button>
-                )}
+              <img src="logo.png" alt="Chácara Lima" className="h-10 sm:h-14 cursor-pointer" onClick={() => window.scrollTo(0,0)} onError={(e) => e.target.style.display='none'} />
+              <div className="flex items-center gap-3">
+                <a href="#reservas" className="px-6 py-2.5 sm:px-8 sm:py-3.5 bg-gradient-to-r from-[#1474b4] to-[#00afee] text-white text-[12px] sm:text-base font-black uppercase tracking-widest rounded-full shadow-lg hover:scale-105 transition-transform">RESERVAR</a>
+                <button onClick={() => setView(view === 'home' ? 'login' : 'home')} className="px-4 py-2.5 border border-white/20 rounded-full text-white/70 hover:text-white text-[10px] sm:text-sm font-bold uppercase">Admin</button>
               </div>
             </div>
           </nav>
@@ -329,13 +377,20 @@
                   </div>
 
                   <div className="relative">
-                    <div className="grid grid-cols-7">{renderCalendarDays()}</div>
+                    <div className="grid grid-cols-7 gap-y-1">{renderCalendarDays()}</div>
                     {!isMonthUnlocked && (
                       <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center rounded-3xl">
                         <i className="fa-solid fa-lock text-3xl text-slate-300 mb-2"></i>
                         <p className="font-black text-slate-800 uppercase tracking-widest">Agenda Fechada</p>
                       </div>
                     )}
+                  </div>
+
+                  {/* LEGENDA */}
+                  <div className="flex justify-center gap-4 mt-6 mb-2 text-[10px] font-bold text-slate-500 uppercase flex-wrap">
+                    <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-white border border-slate-200"></span> Livre</div>
+                    <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-50 border border-red-100 flex items-center justify-center overflow-hidden"><div className="w-[150%] h-[1px] bg-red-400 rotate-[-45deg]"></div></span> Indisponível</div>
+                    <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gradient-to-r from-[#1474b4] to-[#00afee]"></span> Selecionado</div>
                   </div>
 
                   {selection.length > 0 && isMonthUnlocked && (
@@ -351,7 +406,7 @@
             {view === 'login' && (
               <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
                 <form onSubmit={handleLogin} className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center">
-                  <img src="logo.png" className="h-16 mx-auto mb-6" />
+                  <img src="logo.png" className="h-16 mx-auto mb-6" onError={(e) => e.target.style.display='none'} />
                   <h2 className="text-xl font-black mb-6">Acesso Admin</h2>
                   {loginError && <p className="text-red-500 text-xs font-bold mb-4">{loginError}</p>}
                   <input type="text" placeholder="Utilizador" value={loginUser} onChange={e=>setLoginUser(e.target.value)} className="w-full p-4 bg-slate-100 rounded-2xl mb-4 outline-none focus:ring-2 focus:ring-[#00afee]" />
@@ -413,7 +468,7 @@
                      <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 uppercase mb-2">
                       <div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div>
                      </div>
-                     <div className="grid grid-cols-7">{renderCalendarDays()}</div>
+                     <div className="grid grid-cols-7 gap-y-1">{renderCalendarDays()}</div>
                   </div>
                 </div>
 
@@ -463,7 +518,7 @@
 
           <footer className="relative z-10 footer-gradient pt-16 pb-8 px-4 border-t border-white/5">
             <div className="max-w-4xl mx-auto flex flex-col items-center gap-8">
-              <img src="logo.png" className="h-16 opacity-80" alt="Chácara Lima" />
+              <img src="logo.png" className="h-16 opacity-80" alt="Chácara Lima" onError={(e) => e.target.style.display='none'} />
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 w-full text-center sm:text-left">
                 <div className="space-y-3">
@@ -523,9 +578,15 @@
 
           {/* STORY PREVIEW (HIDDEN) */}
           <div id="story-calendar-container" className="fixed left-[-9999px] w-[1080px] h-[1920px] bg-[#0f172a] p-16 flex flex-col items-center justify-between text-white">
-            <div className="text-center">
-              <p className="text-[40px] font-bold tracking-[0.3em] uppercase text-[#00afee] mb-2">Confira nossa</p>
-              <h1 className="text-[100px] font-black leading-none uppercase">Datas Disponíveis</h1>
+            <div className="w-full flex justify-center mt-8">
+              {!titleError ? (
+                <img src="titulo-story.png" alt="Datas Disponíveis" className="w-[900px] object-contain" onError={() => setTitleError(true)} />
+              ) : (
+                <div className="text-center">
+                  <p className="text-[40px] font-bold tracking-[0.3em] uppercase text-[#00afee] mb-2">Confira nossa</p>
+                  <h1 className="text-[100px] font-black leading-none uppercase">Datas Disponíveis</h1>
+                </div>
+              )}
             </div>
             <div className="w-full bg-white rounded-[4rem] p-12 text-slate-800">
                <h2 className="text-center text-5xl font-black mb-10 capitalize">{currentDate.toLocaleString('pt-PT', {month:'long', year:'numeric'})}</h2>
@@ -535,7 +596,7 @@
                <div className="grid grid-cols-7 gap-y-6">{renderCalendarDays(true)}</div>
             </div>
             <div className="flex flex-col items-center gap-8">
-              <img src="logo.png" style={{height: '180px'}} />
+              <img src="logo.png" style={{height: '180px'}} onError={(e) => e.target.style.display='none'} />
               <div className="px-12 py-6 bg-[#1474b4] rounded-full text-4xl font-black shadow-2xl flex items-center gap-4">
                 <i className="fa-brands fa-whatsapp"></i> (87) 98104-5332
               </div>
@@ -547,7 +608,7 @@
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90" onClick={() => setSelectedStructure(null)}>
               <div className="bg-[#0a0f1c] rounded-[3rem] overflow-hidden max-w-lg w-full relative border border-white/10 animate-fade-in-up shadow-2xl" onClick={e=>e.stopPropagation()}>
                 <div className="relative h-80">
-                  <img src={selectedStructure.img} className="w-full h-full object-cover" />
+                  <img src={selectedStructure.img} className="w-full h-full object-cover" onError={(e) => e.target.src='https://placehold.co/600x400/0a0f1c/00afee?text=Imagem+Indisponível'} />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1c] to-transparent"></div>
                   <button onClick={() => setSelectedStructure(null)} className="absolute top-5 right-5 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center backdrop-blur-md"><i className="fa-solid fa-xmark"></i></button>
                 </div>
@@ -568,9 +629,14 @@
                  <button onClick={() => setIsModalOpen(false)} className="absolute top-5 right-5 text-slate-300"><i className="fa-solid fa-xmark"></i></button>
                  <h3 className="text-2xl font-black mb-1 text-slate-900">Solicitar Reserva</h3>
                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Datas: {selection.join(' e ')}</p>
+                 
+                 {formError && (
+                   <p className="text-red-500 text-[10px] font-black uppercase mb-4 text-center bg-red-50 p-2 rounded-xl border border-red-100">{formError}</p>
+                 )}
+
                  <form onSubmit={handleRequestDate} className="space-y-4">
-                   <input type="text" placeholder="Seu nome completo" required value={guestName} onChange={e=>setGuestName(e.target.value)} className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00afee] font-bold" />
-                   <input type="tel" placeholder="WhatsApp (DDD)" required value={guestPhone} onChange={e=>setGuestPhone(e.target.value)} className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00afee] font-bold" />
+                   <input type="text" placeholder="Seu nome completo" required value={guestName} onChange={e=>{setGuestName(e.target.value); setFormError('');}} className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00afee] font-bold" />
+                   <input type="tel" placeholder="WhatsApp (DDD)" required value={guestPhone} onChange={handlePhoneChange} maxLength="15" className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#00afee] font-bold" />
                    <button className="w-full py-4 bg-[#1474b4] text-white font-black rounded-2xl shadow-lg uppercase tracking-widest">Enviar Pedido</button>
                  </form>
                </div>
