@@ -213,11 +213,31 @@
         if (selection.length === 0) {
           setSelection([dateStr]);
         } else if (selection.length === 1) {
-          const firstDate = new Date(selection[0] + 'T12:00:00'), clickedDate = new Date(dateStr + 'T12:00:00');
-          const diffDays = Math.round(Math.abs(clickedDate - firstDate) / (1000 * 60 * 60 * 24));
-          if (dateStr === selection[0]) setSelection([]);
-          else if (diffDays === 1) setSelection([selection[0], dateStr].sort());
-          else setSelection([dateStr]);
+          const firstDate = new Date(selection[0] + 'T12:00:00');
+          const clickedDate = new Date(dateStr + 'T12:00:00');
+          const diffDays = Math.round((clickedDate - firstDate) / (1000 * 60 * 60 * 24));
+          const absDiff = Math.abs(diffDays);
+
+          if (absDiff === 0) {
+            setSelection([]); // Clicou no mesmo dia: desseleciona
+          } else if (absDiff === 1) {
+            setSelection([selection[0], dateStr].sort()); // Dias vizinhos: seleciona 2 dias
+          } else if (absDiff === 2) {
+            // Gap de 1 dia (ex: clicou 25 e 27): preenche o meio automaticamente
+            const middleDate = new Date(firstDate);
+            middleDate.setDate(firstDate.getDate() + (diffDays > 0 ? 1 : -1));
+            const middleDateStr = formatDate(middleDate);
+            
+            // Segurança: verifica se o dia do meio não está bloqueado/alugado
+            const middleBooking = bookings.find(b => b.dates?.includes(middleDateStr));
+            if (middleBooking && middleBooking.status !== 'pending' && !isAdmin) {
+              setSelection([dateStr]); // Se o meio estiver ocupado, recomeça apenas com o dia clicado
+            } else {
+              setSelection([selection[0], middleDateStr, dateStr].sort()); // Seleciona os 3 dias
+            }
+          } else {
+            setSelection([dateStr]); // Mais de 3 dias de distância: recomeça a seleção
+          }
         } else if (selection.length === 2) {
           const clickedDate = new Date(dateStr + 'T12:00:00');
           const firstSelected = new Date(selection[0] + 'T12:00:00');
@@ -341,12 +361,12 @@
             textColor += isForImage ? " text-transparent" : " text-slate-400 opacity-50";
           } else if (booking && (booking.status === 'booked' || booking.status === 'blocked' || (booking.status === 'pending' && !isAdmin))) {
             if (isForImage) {
-              // Aplica o fundo verde, remove a data e coloca a seta APENAS no story
-              btnClass += " border-[#10b981] bg-[#10b981]";
-              showDate = false;
-              // Setinha com posicionamento absoluto para forçar a subida igual ao número
+              // Fundo vermelho claro, data visível em vermelho escuro e o risco diagonal idêntico à legenda
+              btnClass += " border-red-200 bg-red-50 overflow-hidden";
+              showDate = true;
+              textColor += " text-red-400";
               indicator = (
-                <i className="fa-solid fa-check absolute left-0 right-0 text-center text-white text-[42px] z-20 pointer-events-none" style={{ top: '30%', transform: 'translateY(-50%)' }}></i>
+                <div className="absolute top-1/2 left-1/2 w-[150%] h-[4px] bg-red-400 rotate-[-45deg] -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20"></div>
               );
             } else {
               // Mantém o visual clássico com risco vermelho no site
@@ -373,9 +393,6 @@
             btnClass += " bg-[#00afee] border-transparent shadow-md";
             textColor += " text-white font-bold";
             if (date.getDay() !== 0) bgStretch = <div className="absolute left-0 z-0 pointer-events-none bg-[#00afee]" style={{ top: 0, bottom: 0, margin: 'auto', width: '50%', height: isForImage ? '60px' : '30px' }}></div>;
-          } else if (holidays.includes(dateStr)) {
-            btnClass += " border-rose-200 bg-rose-50 hover:bg-rose-100";
-            textColor += " text-rose-600 font-bold";
           } else {
             btnClass += " border-slate-200 bg-white hover:bg-slate-50";
             textColor += (date.getDay() === 0 || date.getDay() === 6) ? " text-slate-900 font-bold" : " text-slate-700 font-medium";
@@ -584,7 +601,7 @@
                   <div className="bg-white p-6 rounded-[2rem] shadow-xl">
                     <h3 className="font-black text-lg mb-6 border-b pb-4">Extratos e Solicitações</h3>
                     {bookings.length === 0 ? <p className="text-center py-10 text-slate-400 font-bold uppercase text-xs">Nenhuma movimentação registada.</p> : 
-                      bookings.sort((a,b) => b.requestedAt.localeCompare(a.requestedAt)).map(b => (
+                      bookings.sort((a,b) => (b.requestedAt || '').localeCompare(a.requestedAt || '')).map(b => (
                       <div key={b.id} className="p-5 rounded-3xl border border-slate-100 bg-slate-50/50 mb-4 relative overflow-hidden">
                         <div className={`absolute left-0 top-0 bottom-0 w-2 ${b.status === 'booked' ? 'bg-emerald-500' : b.status === 'blocked' ? 'bg-slate-400' : 'bg-amber-400'}`}></div>
                         <div className="flex justify-between items-start mb-3 pl-2">
@@ -702,7 +719,9 @@
                  <span className="relative -top-[16px]">Dias Livres</span>
                </div>
                <div className="flex items-center gap-4">
-                 <div className="w-[40px] h-[40px] rounded-full bg-[#10b981] shrink-0 shadow-sm"></div> 
+                 <div className="w-[40px] h-[40px] rounded-full bg-red-50 border-[3px] border-red-200 shrink-0 shadow-sm flex items-center justify-center overflow-hidden">
+                   <div className="w-[150%] h-[3px] bg-red-400 rotate-[-45deg]"></div>
+                 </div> 
                  <span className="relative -top-[16px]">Dias Alugados</span>
                </div>
              </div>
